@@ -1,15 +1,17 @@
 """yatslist — Yat's List 命令行客户端。
 
-零第三方依赖，只用 Python 标准库。从 yatslist.com 拉取三张公开清单的
-JSON 数据（深圳活动 / 黑客松 / 深圳外国人活动），在终端里按日期浏览、
-按截止日排序、跨清单搜索。
+零第三方依赖，只用 Python 标准库。从 yatslist.com 拉取四张公开清单的
+JSON 数据（深圳活动 / 黑客松 / 深圳外国人活动 / X Space 纪要），在终端里
+按日期浏览、按截止日排序、跨清单搜索。
 
 数据结构（2026-11 实测）：
-- events.json / expat events.json：顶层 {updated_at, events: [...]}，
+- events.json / szexpat events.json：顶层 {updated_at, events: [...]}，
   条目 start/end 为带时区的 ISO 时间字符串（如 2026-11-08T19:00:00+08:00，
   可缺秒、可为 null）。
 - hackathons.json：顶层 {updated_at, hackathons: [...]}，
   条目 deadline/start 为纯日期字符串（YYYY-MM-DD）。
+- spaces.json：顶层 {updated_at, spaces: [...]}，存档型清单，
+  条目 date 为纯日期字符串（YYYY-MM-DD），按日期倒序展示。
 输出时间一律取数据源原文，不做时区换算。
 """
 
@@ -22,12 +24,13 @@ import urllib.error
 import urllib.request
 from datetime import date, datetime, time, timedelta, timezone
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 # 数据源地址（模块级常量，改版时只改这里）
 EVENTS_URL = "https://yatslist.com/events.json"
 HACKATHONS_URL = "https://yatslist.com/hackathons.json"
-EXPAT_URL = "https://yatslist.com/expat/events.json"
+EXPAT_URL = "https://yatslist.com/szexpat/events.json"
+SPACES_URL = "https://yatslist.com/spaces.json"
 
 TIMEOUT = 10  # 秒
 USER_AGENT = f"yatslist-cli/{__version__}"
@@ -40,6 +43,7 @@ WEEKDAYS_ZH = ["周一", "周二", "周三", "周四", "周五", "周六", "周�
 SOURCE_EVENTS = "深圳活动"
 SOURCE_HACKATHONS = "黑客松"
 SOURCE_EXPAT = "外国人活动"
+SOURCE_SPACES = "Space 纪要"
 
 
 class FetchError(Exception):
@@ -250,6 +254,23 @@ def fmt_hackathon_line(item) -> str:
     return line
 
 
+def sort_spaces(items):
+    """Space 纪要按日期倒序（无日期的垫底），同日期保持原顺序。"""
+    return sorted(items, key=lambda it: parse_date(it.get("date")) or date.min, reverse=True)
+
+
+def fmt_space_line(item) -> str:
+    title = item.get("title") or "(无标题)"
+    line = f"  {item.get('date') or '----'}  {title}"
+    series = item.get("series")
+    if series:
+        line += f"  [{series}"
+        if item.get("episode"):
+            line += f" 第{item['episode']}期"
+        line += "]"
+    return line
+
+
 def print_event_groups(picked, today: date, line_fmt):
     for d, group in group_by_date(picked):
         print(fmt_date_header(d))
@@ -306,6 +327,24 @@ def cmd_hackathons(args) -> int:
     return 0
 
 
+def cmd_spaces(args) -> int:
+    data = fetch_json(SPACES_URL)
+    items = sort_spaces(_items(data, "spaces"))
+    if args.json:
+        print(json.dumps(items, ensure_ascii=False, indent=2))
+        return 0
+    updated = data.get("updated_at", "") if isinstance(data, dict) else ""
+    print(f"Yat's List · {SOURCE_SPACES}（共 {len(items)} 场，按日期倒序）" + (f"  数据更新于 {updated}" if updated else ""))
+    if not items:
+        print("（暂时还没有收录的纪要）")
+        return 0
+    for item in items:
+        print(fmt_space_line(item))
+        if item.get("url"):
+            print(f"    {item['url']}")
+    return 0
+
+
 def cmd_search(args) -> int:
     ev = _items(fetch_json(EVENTS_URL), "events")
     hk = _items(fetch_json(HACKATHONS_URL), "hackathons")
@@ -341,7 +380,7 @@ def cmd_search(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="yatslist",
-        description="Yat's List 命令行客户端：深圳活动 / 黑客松 / 深圳外国人活动（数据来源 https://yatslist.com）",
+        description="Yat's List 命令行客户端：深圳活动 / 黑客松 / 深圳外国人活动 / Space 纪要（数据来源 https://yatslist.com）",
     )
     parser.add_argument("--version", action="version", version=f"yatslist {__version__}")
     parser.add_argument("--days", type=int, default=None, help="只看未来 N 天（默认 7）")
@@ -356,6 +395,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_ex = sub.add_parser("expat", help="深圳外国人活动（默认未来 14 天）")
     p_ex.add_argument("--days", type=int, default=None, help="只看未来 N 天（默认 14）")
     p_ex.add_argument("--json", action="store_true", help="输出 JSON 数组")
+
+    p_sp = sub.add_parser("spaces", help="X Space 纪要清单（按日期倒序）")
+    p_sp.add_argument("--json", action="store_true", help="输出 JSON 数组")
 
     p_se = sub.add_parser("search", help="三张清单一起搜")
     p_se.add_argument("keyword", help="关键词（匹配标题/地点/简介）")
@@ -385,6 +427,8 @@ def _dispatch(args) -> int:
             return cmd_hackathons(args)
         if args.command == "expat":
             return cmd_events(args, expat=True)
+        if args.command == "spaces":
+            return cmd_spaces(args)
         if args.command == "search":
             return cmd_search(args)
         return cmd_events(args, expat=False)

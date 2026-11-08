@@ -1,8 +1,8 @@
 # yatslist
 
-**Yat's List 的命令行客户端** — 深圳活动、黑客松、深圳外国人活动，三张清单，一条命令。
+**Yat's List 的命令行客户端** — 深圳活动、黑客松、深圳外国人活动、X Space 纪要，四张清单，一条命令。
 
-**The Yat's List command-line client** — Shenzhen events, hackathons, and expat events in Shenzhen, right in your terminal. Zero third-party dependencies (Python standard library only).
+**The Yat's List command-line client** — Shenzhen events, hackathons, expat events in Shenzhen, and X Space recaps, right in your terminal. Zero third-party dependencies (Python standard library only).
 
 > Shenzhen events, served to your Agent — and now to your terminal, too.
 
@@ -33,6 +33,10 @@ yatslist hackathons --soon
 # 深圳外国人活动：未来 14 天（英文活动为主）
 yatslist expat
 yatslist expat --days 7
+
+# X Space 纪要：已收录场次，按日期倒序（存档清单，不定期更新）
+yatslist spaces
+yatslist spaces --json
 
 # 三张清单一起搜（标题 / 地点 / 简介），结果标注来源清单
 yatslist search Agent
@@ -71,7 +75,8 @@ Yat's List · 搜索「AI」（共 5 条）
 | --- | --- |
 | 深圳活动 | https://yatslist.com/events.json |
 | 黑客松 | https://yatslist.com/hackathons.json |
-| 深圳外国人活动 | https://yatslist.com/expat/events.json |
+| 深圳外国人活动 | https://yatslist.com/szexpat/events.json |
+| X Space 纪要 | https://yatslist.com/spaces.json |
 
 说明 / Notes:
 

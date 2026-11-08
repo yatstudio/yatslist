@@ -111,6 +111,29 @@ class TestExpatWindow(unittest.TestCase):
         self.assertEqual(sorted(titles), ["English Comedy Night", "Long-running Art Exhibition"])
 
 
+class TestSpaces(unittest.TestCase):
+    def setUp(self):
+        self.items = load("spaces.json")["spaces"]
+
+    def test_sort_desc_by_date(self):
+        ordered = cli.sort_spaces(self.items)
+        self.assertEqual([it["id"] for it in ordered], ["series-ep16", "mid-single", "older-single"])
+
+    def test_line_with_series_and_episode(self):
+        item = [it for it in self.items if it["id"] == "series-ep16"][0]
+        line = cli.fmt_space_line(item)
+        self.assertEqual(line, "  2026-11-07  《测试系列》第 16 期：如何社交？  [测试系列 第16期]")
+
+    def test_line_without_series(self):
+        item = [it for it in self.items if it["id"] == "older-single"][0]
+        line = cli.fmt_space_line(item)
+        self.assertEqual(line, "  2026-10-27  单期节目：一个话题")
+
+    def test_expat_url_points_to_szexpat(self):
+        self.assertEqual(cli.EXPAT_URL, "https://yatslist.com/szexpat/events.json")
+        self.assertEqual(cli.SPACES_URL, "https://yatslist.com/spaces.json")
+
+
 class TestSearch(unittest.TestCase):
     def setUp(self):
         self.ev = load("events.json")["events"]
